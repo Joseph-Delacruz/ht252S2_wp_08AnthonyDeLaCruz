@@ -1,41 +1,41 @@
 from flask import Flask, render_template, request, redirect, url_for
 from flask_mysqldb import MySQL
-import os
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 
-# -----------------------------
-# CONFIGURACIÓN BD (LOCAL O AWS)
-# -----------------------------
+# -------------------------------------------------
+# CONFIGURACIÓN BD (LOCAL O AWS RDS)
+# -------------------------------------------------
 
-app.config['MYSQL_HOST'] = 'localhost'        # O endpoint de AWS RDS
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
+app.config['MYSQL_HOST'] = 'hack.cnis6occib39.us-east-1.rds.amazonaws.com'  # Cambiar por tu endpoint
+app.config['MYSQL_USER'] = 'admin'
+app.config['MYSQL_PASSWORD'] = 'holamundo1234'
 app.config['MYSQL_DB'] = 'inventario_equipos'
+app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
 mysql = MySQL(app)
 
-# -----------------------------
-# CARPETA PARA GUARDAR IMÁGENES
-# -----------------------------
+# Carpeta de imágenes
 UPLOAD_FOLDER = "static/image/equipos/"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# Crear carpeta si no existe
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# -----------------------------------------------------
-# RUTA PRINCIPAL (MUESTRA EL FORMULARIO)
-# -----------------------------------------------------
+
+# -------------------------------------------------
+# RUTA PRINCIPAL – FORMULARIO
+# -------------------------------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# -----------------------------------------------------
-# GUARDAR EQUIPO EN BASE DE DATOS
-# -----------------------------------------------------
+
+# -------------------------------------------------
+# REGISTRAR EQUIPO
+# -------------------------------------------------
 @app.route("/registrar", methods=["POST"])
 def registrar():
 
@@ -47,23 +47,24 @@ def registrar():
     almacenamiento = request.form["almacenamiento"]
     ram = request.form["ram"]
     estado = request.form["estado"]
+    fecha_mantenimiento = request.form["fecha_mantenimiento"]
+    fecha_registro = request.form["fecha_registro"]
 
-    # ---------- MANEJO DE IMAGEN ----------
+    # Imagen
     imagen = request.files["imagen"]
     nombre_imagen = None
 
-    if imagen and imagen.filename != "":
-        extension = imagen.filename.split(".")[-1]
+    if imagen and imagen.filename.strip():
+        extension = imagen.filename.rsplit(".", 1)[-1]
         nombre_imagen = f"{codigo}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{extension}"
-        ruta_completa = os.path.join(app.config["UPLOAD_FOLDER"], nombre_imagen)
-        imagen.save(ruta_completa)
+        imagen.save(os.path.join(app.config["UPLOAD_FOLDER"], nombre_imagen))
 
-    # ---------- INSERTAR EN BD ----------
     cursor = mysql.connection.cursor()
 
     cursor.execute("""
-        INSERT INTO equipos (codigo, tipo_equipo, marca, modelo, sistema, almacenamiento, ram, estado, imagen)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO equipos 
+        (codigo, tipo_equipo, marca, modelo, sistema, almacenamiento, ram, estado, fecha_mantenimiento, fecha_registro, imagen)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         codigo,
         tipo_equipo,
@@ -73,14 +74,17 @@ def registrar():
         almacenamiento,
         ram,
         estado,
+        fecha_mantenimiento,
+        fecha_registro,
         nombre_imagen
     ))
 
     mysql.connection.commit()
     cursor.close()
 
-    return redirect(url_for("formulario"))
+    return redirect(url_for("index"))
 
-# -----------------------------
+
+# -------------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True)
